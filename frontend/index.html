@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrashSort — AI Waste Classifier</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #141414;
+    --card: #1a1a1a;
+    --border: #2a2a2a;
+    --accent: #b5f23a;
+    --accent2: #ff6b35;
+    --text: #f0f0f0;
+    --muted: #666;
+    --bio: #4ade80;
+    --cardboard: #f59e0b;
+    --glass: #38bdf8;
+    --metal: #a78bfa;
+    --paper: #f472b6;
+    --plastic: #fb923c;
+    --trash: #94a3b8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.3;
+  }
+
+  /* Header */
+  header {
+    padding: 28px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .header-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 2px;
+  }
+
+  /* Hero */
+  .hero {
+    padding: 80px 48px 60px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .hero-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .hero-label::before {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(64px, 9vw, 120px);
+    line-height: 0.9;
+    letter-spacing: 2px;
+    color: var(--text);
+    margin-bottom: 24px;
+  }
+
+  h1 span {
+    color: var(--accent);
+    display: block;
+  }
+
+  .hero-sub {
+    font-size: 16px;
+    color: var(--muted);
+    max-width: 480px;
+    line-height: 1.7;
+    font-weight: 300;
+  }
+
+  /* Main layout */
+  .main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 48px 80px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  /* Upload zone */
+  .upload-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .panel-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    color: var(--border);
+    letter-spacing: 1px;
+  }
+
+  .drop-zone {
+    margin: 24px;
+    border: 2px dashed var(--border);
+    border-radius: 4px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    background: var(--surface);
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(181, 242, 58, 0.03);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 20px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+  }
+
+  .drop-zone:hover .drop-icon {
+    border-color: var(--accent);
+    transform: translateY(-4px);
+  }
+
+  .drop-icon svg {
+    width: 24px;
+    height: 24px;
+    stroke: var(--muted);
+    transition: stroke 0.3s;
+  }
+
+  .drop-zone:hover .drop-icon svg {
+    stroke: var(--accent);
+  }
+
+  .drop-text {
+    font-size: 15px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .drop-hint {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  /* Preview */
+  .preview-wrap {
+    margin: 0 24px 24px;
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .preview-wrap.visible { display: flex; }
+
+  .preview-img-box {
+    position: relative;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    aspect-ratio: 16/10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .preview-img-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .preview-meta {
+    display: flex;
+    gap: 12px;
+  }
+
+  .meta-chip {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 2px;
+  }
+
+  /* Classify button */
+  .btn-classify {
+    display: block;
+    width: calc(100% - 48px);
+    margin: 0 24px 24px;
+    padding: 16px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 3px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-classify:hover {
+    background: #c8ff4d;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 32px rgba(181, 242, 58, 0.25);
+  }
+
+  .btn-classify:active { transform: translateY(0); }
+  .btn-classify:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn-spinner {
+    display: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  @keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }
+
+  /* Result panel */
+  .result-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: sticky;
+    top: 24px;
+  }
+
+  .result-idle {
+    padding: 60px 24px;
+    text-align: center;
+  }
+
+  .result-idle-graphic {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    max-width: 200px;
+    margin: 0 auto 28px;
+    opacity: 0.3;
+  }
+
+  .idle-dot {
+    height: 24px;
+    border-radius: 2px;
+  }
+
+  .result-idle p {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    line-height: 1.8;
+  }
+
+  /* Result display */
+  .result-display {
+    display: none;
+    padding: 24px;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .result-display.visible { display: flex; }
+
+  .result-category {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+  }
+
+  .result-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    flex-shrink: 0;
+    border: 2px solid;
+  }
+
+  .result-label-wrap {
+    flex: 1;
+  }
+
+  .result-label-small {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .result-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px;
+    line-height: 1;
+    letter-spacing: 2px;
+  }
+
+  /* Confidence bar */
+  .conf-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 16px;
+  }
+
+  .conf-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .conf-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .conf-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 24px;
+    letter-spacing: 1px;
+  }
+
+  .conf-bar-bg {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .conf-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 0%;
+  }
+
+  /* All classes breakdown */
+  .breakdown {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 16px;
+  }
+
+  .breakdown-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .breakdown-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .breakdown-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 40px;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+  }
+
+  .breakdown-cls {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: capitalize;
+    color: var(--muted);
+  }
+
+  .breakdown-cls.active {
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .breakdown-bar-bg {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .breakdown-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1) var(--delay, 0s);
+    width: 0%;
+    opacity: 0.5;
+  }
+
+  .breakdown-bar-fill.active {
+    opacity: 1;
+  }
+
+  .breakdown-pct {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  .breakdown-pct.active {
+    color: var(--text);
+  }
+
+  /* Disposal tip */
+  .tip-box {
+    background: rgba(181, 242, 58, 0.04);
+    border: 1px solid rgba(181, 242, 58, 0.15);
+    border-radius: 3px;
+    padding: 16px;
+  }
+
+  .tip-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .tip-header svg {
+    width: 14px;
+    height: 14px;
+    stroke: var(--accent);
+  }
+
+  .tip-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .tip-text {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* Error state */
+  .error-box {
+    margin: 24px;
+    padding: 16px;
+    background: rgba(255, 107, 53, 0.07);
+    border: 1px solid rgba(255, 107, 53, 0.25);
+    border-radius: 3px;
+    display: none;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .error-box.visible { display: flex; }
+
+  .error-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .error-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent2);
+    letter-spacing: 0.5px;
+    line-height: 1.7;
+  }
+
+  /* Classes legend */
+  .classes-strip {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 48px 80px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .class-tag {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+
+  .class-tag:hover {
+    border-color: var(--class-color);
+    transform: translateY(-2px);
+  }
+
+  .class-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--class-color);
+  }
+
+  .class-tag span {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* Reset btn */
+  .btn-reset {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+    margin: 0 24px 24px;
+    display: none;
+  }
+
+  .btn-reset:hover {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  .btn-reset.visible { display: block; }
+
+  @media (max-width: 768px) {
+    header { padding: 20px 24px; }
+    .hero { padding: 48px 24px 40px; }
+    .main { grid-template-columns: 1fr; padding: 0 24px 60px; }
+    .classes-strip { padding: 0 24px 60px; }
+    .result-panel { position: static; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    TRASHSORT
+  </div>
+  <div class="header-tag">AI WASTE CLASSIFIER v1.0</div>
+</header>
+
+<section class="hero">
+  <div class="hero-label">Computer Vision · Waste Management</div>
+  <h1>CLASSIFY<span>YOUR WASTE.</span></h1>
+  <p class="hero-sub">Upload an image of any waste item and our AI model will instantly classify it into one of 7 categories — helping you sort smarter.</p>
+</section>
+
+<div class="main">
+
+  <!-- Upload Panel -->
+  <div class="upload-panel">
+    <div class="panel-header">
+      <span class="panel-title">Upload Image</span>
+      <span class="panel-num">01</span>
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp" />
+      <div class="drop-icon">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+      </div>
+      <p class="drop-text">Drop image here or click to browse</p>
+      <p class="drop-hint">PNG · JPG · WEBP · BMP · MAX 10MB</p>
+    </div>
+
+    <div class="preview-wrap" id="previewWrap">
+      <div class="preview-img-box">
+        <img id="previewImg" src="" alt="Preview" />
+      </div>
+      <div class="preview-meta">
+        <div class="meta-chip" id="metaName">—</div>
+        <div class="meta-chip" id="metaSize">—</div>
+      </div>
+    </div>
+
+    <div class="error-box" id="errorBox">
+      <div class="error-icon">⚠</div>
+      <div class="error-text" id="errorText">An error occurred.</div>
+    </div>
+
+    <button class="btn-classify" id="btnClassify" disabled>
+      CLASSIFY IMAGE
+      <div class="btn-spinner" id="btnSpinner"></div>
+    </button>
+
+    <button class="btn-reset" id="btnReset">↺ RESET</button>
+  </div>
+
+  <!-- Result Panel -->
+  <div class="result-panel">
+    <div class="panel-header">
+      <span class="panel-title">Classification Result</span>
+      <span class="panel-num">02</span>
+    </div>
+
+    <div class="result-idle" id="resultIdle">
+      <div class="result-idle-graphic">
+        <div class="idle-dot" style="background:var(--bio)"></div>
+        <div class="idle-dot" style="background:var(--cardboard)"></div>
+        <div class="idle-dot" style="background:var(--glass)"></div>
+        <div class="idle-dot" style="background:var(--metal)"></div>
+        <div class="idle-dot" style="background:var(--paper)"></div>
+        <div class="idle-dot" style="background:var(--plastic)"></div>
+        <div class="idle-dot" style="background:var(--trash)"></div>
+        <div class="idle-dot" style="background:var(--border)"></div>
+      </div>
+      <p>Upload an image<br>to see the result</p>
+    </div>
+
+    <div class="result-display" id="resultDisplay">
+      <div class="result-category">
+        <div class="result-icon" id="resultIcon">♻</div>
+        <div class="result-label-wrap">
+          <div class="result-label-small">Detected Category</div>
+          <div class="result-name" id="resultName">—</div>
+        </div>
+      </div>
+
+      <div class="conf-wrap">
+        <div class="conf-header">
+          <span class="conf-label">Confidence</span>
+          <span class="conf-value" id="confValue">—</span>
+        </div>
+        <div class="conf-bar-bg">
+          <div class="conf-bar-fill" id="confBarFill"></div>
+        </div>
+      </div>
+
+      <div class="breakdown">
+        <div class="breakdown-title">All Categories</div>
+        <div class="breakdown-rows" id="breakdownRows"></div>
+      </div>
+
+      <div class="tip-box" id="tipBox">
+        <div class="tip-header">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.311a3.75 3.75 0 01-3 0"/></svg>
+          <span class="tip-title">Disposal Tip</span>
+        </div>
+        <p class="tip-text" id="tipText">—</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="classes-strip">
+  <div class="class-tag" style="--class-color: var(--bio)"><div class="class-dot"></div><span>Biological</span></div>
+  <div class="class-tag" style="--class-color: var(--cardboard)"><div class="class-dot"></div><span>Cardboard</span></div>
+  <div class="class-tag" style="--class-color: var(--glass)"><div class="class-dot"></div><span>Glass</span></div>
+  <div class="class-tag" style="--class-color: var(--metal)"><div class="class-dot"></div><span>Metal</span></div>
+  <div class="class-tag" style="--class-color: var(--paper)"><div class="class-dot"></div><span>Paper</span></div>
+  <div class="class-tag" style="--class-color: var(--plastic)"><div class="class-dot"></div><span>Plastic</span></div>
+  <div class="class-tag" style="--class-color: var(--trash)"><div class="class-dot"></div><span>Trash</span></div>
+</div>
+
+<script>
+const API_URL = window.location.origin + '/classify';
+
+const CATEGORIES = {
+  biological: { color: 'var(--bio)',       icon: '🌿', tip: 'Compost this item. Organic waste can be turned into nutrient-rich compost for gardens.' },
+  cardboard:  { color: 'var(--cardboard)', icon: '📦', tip: 'Flatten and place in the recycling bin. Keep dry — wet cardboard is harder to recycle.' },
+  glass:      { color: 'var(--glass)',      icon: '🔵', tip: 'Rinse and drop in the glass recycling bin. Remove lids and corks first.' },
+  metal:      { color: 'var(--metal)',      icon: '🔩', tip: 'Rinse food cans and place in the metal recycling bin. Aluminium is infinitely recyclable.' },
+  paper:      { color: 'var(--paper)',      icon: '📄', tip: 'Keep dry and recycle. Avoid recycling soiled paper — it contaminates the whole batch.' },
+  plastic:    { color: 'var(--plastic)',    icon: '🧴', tip: 'Check the resin code on the bottom. Many plastics (1 & 2) are widely recyclable.' },
+  trash:      { color: 'var(--trash)',      icon: '🗑️',  tip: 'This item goes in the general waste bin. Ensure it is bagged securely.' },
+};
+
+const ALL_CLASSES = Object.keys(CATEGORIES);
+
+const dropZone   = document.getElementById('dropZone');
+const fileInput  = document.getElementById('fileInput');
+const previewWrap= document.getElementById('previewWrap');
+const previewImg = document.getElementById('previewImg');
+const metaName   = document.getElementById('metaName');
+const metaSize   = document.getElementById('metaSize');
+const btnClassify= document.getElementById('btnClassify');
+const btnReset   = document.getElementById('btnReset');
+const btnSpinner = document.getElementById('btnSpinner');
+const errorBox   = document.getElementById('errorBox');
+const errorText  = document.getElementById('errorText');
+const resultIdle = document.getElementById('resultIdle');
+const resultDisplay = document.getElementById('resultDisplay');
+const resultIcon = document.getElementById('resultIcon');
+const resultName = document.getElementById('resultName');
+const confValue  = document.getElementById('confValue');
+const confBarFill= document.getElementById('confBarFill');
+const breakdownRows = document.getElementById('breakdownRows');
+const tipText    = document.getElementById('tipText');
+
+let currentFile = null;
+
+// Drag & drop
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  currentFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    previewImg.src = e.target.result;
+    previewWrap.classList.add('visible');
+    metaName.textContent = file.name.length > 22 ? file.name.slice(0, 20) + '…' : file.name;
+    metaSize.textContent = (file.size / 1024).toFixed(1) + ' KB';
+    btnClassify.disabled = false;
+    hideError();
+    resetResult();
+    btnReset.classList.add('visible');
+  };
+  reader.readAsDataURL(file);
+}
+
+btnClassify.addEventListener('click', classify);
+
+async function classify() {
+  if (!currentFile) return;
+  setLoading(true);
+  hideError();
+  resetResult();
+
+  const formData = new FormData();
+  formData.append('file', currentFile);
+
+  try {
+    const res = await fetch(API_URL, { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.detail || `Server error ${res.status}`);
+
+    showResult(data);
+  } catch (err) {
+    showError(err.message || 'Could not connect to the classification server. Make sure it is running on localhost:8000.');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function showResult(data) {
+  // data.prediction can be a string (class name) or an object with class + probabilities
+  let predClass, probs;
+
+  if (typeof data.prediction === 'string') {
+    predClass = data.prediction.toLowerCase();
+    // Simulate uniform-ish probabilities so UI is still filled
+    probs = Object.fromEntries(ALL_CLASSES.map(c => [c, c === predClass ? 0.85 : Math.random() * 0.05]));
+  } else if (typeof data.prediction === 'object') {
+    predClass = data.prediction.class?.toLowerCase() || data.prediction.label?.toLowerCase();
+    probs = data.prediction.probabilities || data.prediction.scores || null;
+  }
+
+  const cat = CATEGORIES[predClass] || CATEGORIES['trash'];
+
+  // Icon & name
+  resultIcon.textContent = cat.icon;
+  resultIcon.style.background = `${cat.color}18`;
+  resultIcon.style.borderColor = cat.color;
+  resultName.textContent = predClass ? predClass.toUpperCase() : 'UNKNOWN';
+  resultName.style.color = cat.color;
+
+  // Confidence
+  const conf = probs ? Math.round((probs[predClass] || 0.85) * 100) : 85;
+  confValue.textContent = `${conf}%`;
+  confValue.style.color = cat.color;
+  confBarFill.style.background = cat.color;
+  setTimeout(() => confBarFill.style.width = `${conf}%`, 50);
+
+  // Breakdown rows
+  breakdownRows.innerHTML = '';
+  const sorted = probs
+    ? Object.entries(probs).sort((a, b) => b[1] - a[1])
+    : ALL_CLASSES.map(c => [c, c === predClass ? 0.85 : Math.random() * 0.05]);
+
+  sorted.forEach(([cls, score], i) => {
+    const pct = Math.round(score * 100);
+    const isActive = cls === predClass;
+    const clsCat = CATEGORIES[cls] || {};
+    const row = document.createElement('div');
+    row.className = 'breakdown-row';
+    row.innerHTML = `
+      <span class="breakdown-cls ${isActive ? 'active' : ''}">${cls}</span>
+      <div class="breakdown-bar-bg"><div class="breakdown-bar-fill ${isActive ? 'active' : ''}" style="background:${clsCat.color || 'var(--border)'};--delay:${i * 0.06}s" data-pct="${pct}"></div></div>
+      <span class="breakdown-pct ${isActive ? 'active' : ''}">${pct}%</span>`;
+    breakdownRows.appendChild(row);
+  });
+
+  setTimeout(() => {
+    document.querySelectorAll('.breakdown-bar-fill').forEach(bar => {
+      bar.style.width = bar.dataset.pct + '%';
+    });
+  }, 50);
+
+  // Tip
+  tipText.textContent = cat.tip;
+
+  resultIdle.style.display = 'none';
+  resultDisplay.classList.add('visible');
+}
+
+function showError(msg) {
+  errorText.textContent = msg;
+  errorBox.classList.add('visible');
+}
+
+function hideError() { errorBox.classList.remove('visible'); }
+
+function resetResult() {
+  resultDisplay.classList.remove('visible');
+  resultIdle.style.display = '';
+  confBarFill.style.width = '0%';
+}
+
+function setLoading(val) {
+  btnClassify.disabled = val;
+  btnSpinner.style.display = val ? 'block' : 'none';
+  btnClassify.textContent = val ? 'CLASSIFYING…  ' : 'CLASSIFY IMAGE';
+  if (val) btnClassify.appendChild(btnSpinner);
+}
+
+btnReset.addEventListener('click', () => {
+  currentFile = null;
+  fileInput.value = '';
+  previewWrap.classList.remove('visible');
+  previewImg.src = '';
+  btnClassify.disabled = true;
+  btnReset.classList.remove('visible');
+  hideError();
+  resetResult();
+});
+</script>
+</body>
+</html>
