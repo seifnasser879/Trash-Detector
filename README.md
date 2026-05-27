@@ -4,10 +4,8 @@ A web application for real-time trash classification using deep learning. Upload
 
 ## 📹 Project Demo
 
-<video width="100%" controls>
-  <source src="./project_video.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+
+![Project Demo](./project_video.gif)
 
 ## 🎯 Overview
 
